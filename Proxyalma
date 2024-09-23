@@ -12,16 +12,18 @@ gen64() {
 	echo "$1:$(ip64):$(ip64):$(ip64):$(ip64)"
 }
 install_3proxy() {
-    echo "Installing 3proxy"
-    URL="https://github.com/3proxy/3proxy/archive/refs/tags/0.9.4.tar.gz"
-    wget -qO- "$URL" | bsdtar -xvf-
-    cd 3proxy-0.9.4
-    make -f Makefile.Linux
-    mkdir -p /usr/local/etc/3proxy/{bin,logs,stat}
-    chmod +x /etc/init.d/3proxy
-    chkconfig --add 3proxy
-    chkconfig 3proxy on
-    cd "$WORKDIR"
+    echo "Installing 3proxy"
+    cd /tmp
+    wget https://github.com/3proxy/3proxy/archive/0.9.3.tar.gz
+    tar -xvzf 0.9.3.tar.gz
+    cd 3proxy-0.9.3
+    make -f Makefile.Linux
+    mkdir -p /usr/local/etc/3proxy/{bin,logs,stat}
+    cp src/3proxy /usr/local/etc/3proxy/bin/
+    chmod +x /etc/init.d/3proxy
+    chkconfig --add 3proxy
+    chkconfig 3proxy on
+    cd "$WORKDIR"
 }
 
 gen_3proxy() {
