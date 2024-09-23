@@ -18,9 +18,10 @@ install_3proxy() {
     # Kiểm tra cài đặt
     rpm -qa | grep 3proxy
 
-    # Kiểm tra sự tồn tại của file cấu hình và tạo mới nếu cần
-if [ ! -f /etc/3proxy/3proxy.cfg ]; then
-    sudo cp /etc/3proxy.cfg /usr/local/etc/3proxy/
+# Kiểm tra sự tồn tại của file cấu hình và tạo mới nếu cần
+if [ ! -f /etc/3proxy.cfg ]; then
+  # Tạo file cấu hình mới với nội dung tùy chỉnh
+  gen_3proxy > /etc/3proxy.cfg
 fi
 
     # Khởi động dịch vụ 3proxy và thiết lập khởi động tự động
