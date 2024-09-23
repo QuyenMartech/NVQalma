@@ -12,38 +12,52 @@ gen64() {
 	echo "$1:$(ip64):$(ip64):$(ip64):$(ip64)"
 }
 install_3proxy() {
-    echo "Installing 3proxy"
-    cd /tmp
-    wget https://github.com/3proxy/3proxy/archive/0.9.3.tar.gz
-    tar -xvzf 0.9.3.tar.gz
-    cd 3proxy-0.9.3
-    make -f Makefile.Linux
-    mkdir -p /usr/local/etc/3proxy/{bin,logs,stat}
-    cp src/3proxy /usr/local/etc/3proxy/bin/
-    chmod +x /etc/init.d/3proxy
-    chkconfig --add 3proxy
-    chkconfig 3proxy on
-    cd "$WORKDIR"
-}
+    # Cài đặt EPEL và 3proxy
+    sudo dnf install -y epel-release 3proxy
 
-gen_3proxy() {
-    cat <<EOF
-daemon
-maxconn 1000
-nscache 65536
-timeouts 1 5 30 60 180 1800 15 60
-setgid 65535
-setuid 65535
-flush
-auth strong
+    # Kiểm tra cài đặt
+    rpm -qa | grep 3proxy
 
-users $(awk -F "/" 'BEGIN{ORS="";} {print $1 ":CL:" $2 " "}' ${WORKDATA})
+    # Kiểm tra sự tồn tại của file cấu hình và tạo mới nếu cần
+    if [ ! -f /etc/3proxy/3proxy.cfg ]; then
+        sudo cp /usr/share/doc/3proxy/examples/3proxy.cfg /etc/3proxy/
+    fi
 
-$(awk -F "/" '{print "auth strong\n" \
-"allow " $1 "\n" \
-"proxy -6 -n -a -p" $4 " -i" $3 " -e"$5"\n" \
-"flush\n"}' ${WORKDATA})
-EOF
+    # Kiểm tra sự tồn tại của file WORKDATA
+    if [ ! -f "${WORKDATA}" ]; then
+        echo "File WORKDATA không tồn tại. Vui lòng tạo file này và đảm bảo định dạng đúng."
+        return 1
+    fi
+
+    # Mở file cấu hình để chỉnh sửa
+    sudo nano /etc/3proxy/3proxy.cfg
+
+    # Cấu hình các thông số trong file 3proxy.cfg dựa trên WORKDATA
+    cat <<EOF >> /etc/3proxy/3proxy.cfg
+    daemon
+    maxconn 1000
+    nscache 65536
+    timeouts 1 5 30 60 180 1800 15 60
+    setgid 65535
+    setuid 65535
+    flush
+    auth strong
+
+    $(awk -F "/" 'BEGIN{ORS="";} {print $1 ":CL:" $2 " "}' ${WORKDATA})
+
+    $(awk -F "/" '{print "auth strong\n" \
+    "allow " $1 "\n" \
+    "proxy -6 -n -a -p" $4 " -i" $3 " -e"$5"\n" \
+    "flush\n"}' ${WORKDATA})
+    EOF   
+
+
+    # Khởi động dịch vụ 3proxy và thiết lập khởi động tự động
+    sudo systemctl daemon-reload
+    sudo systemctl start 3proxy
+    sudo systemctl enable 3proxy
+
+    echo "Cài đặt 3proxy thành công!"
 }
 
 gen_proxy_file_for_user() {
