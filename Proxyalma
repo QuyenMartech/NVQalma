@@ -45,6 +45,14 @@ setuid 65535
 stacksize 6291456
 flush
 
+# Cấu hình ghi nhật ký
+log /var/log/3proxy.log D
+rotate 30
+
+# Cấu hình dịch vụ proxy
+socks -i::0 -p1080 -e"2001:19f0:5c00:2a11::::1"
+http -i::0 -p3128 -e"2001:19f0:5c00:2a11::::1"
+
 users $(awk -F "/" 'BEGIN{ORS="";} {print $1 ":CL:" $2 " "}' ${WORKDATA})
 
 $(awk -F "/" '{print "allow " $1 "\n" \
