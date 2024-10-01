@@ -1,11 +1,4 @@
 #!/bin/sh
-
-# Check if script is run as root
-if [ "$(id -u)" != "0" ]; then
-   echo "This script must be run as root" 1>&2
-   exit 1
-fi
-
 random() {
     tr </dev/urandom -dc A-Za-z0-9 | head -c5
     echo
@@ -34,10 +27,6 @@ install_3proxy() {
 }
 
 gen_3proxy() {
-    if [ ! -f ${WORKDATA} ]; then
-        echo "Error: ${WORKDATA} does not exist. Please ensure gen_data() is called before gen_3proxy()."
-        exit 1
-    fi
     cat <<EOF
 daemon
 maxconn 1000
@@ -45,13 +34,14 @@ nscache 65536
 timeouts 1 5 30 60 180 1800 15 60
 setgid 65535
 setuid 65535
+auth strong
+
+users $(awk -F "/" 'BEGIN{ORS="";} {print $1 ":CL:" $2 " "}' ${WORKDATA})
 
 $(awk -F "/" '{print "auth strong\n" \
 "allow " $1 "\n" \
-"proxy -6 -n -a -p" $4 " -i" $3 " -e"$5"\n" \
-"flush\n"}' ${WORKDATA})
-
-users $(awk -F "/" 'BEGIN{ORS="";} {print $1 ":CL:" $2 " "}' ${WORKDATA})
+"socks -6 -p" $4 " -i" $3 " -e"$5"\n" \
+"proxy -6 -p" $4 " -i" $3 " -e"$5"\n"}' ${WORKDATA})
 
 external ${IP6}
 EOF
