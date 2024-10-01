@@ -20,10 +20,9 @@ install_3proxy() {
     cd 3proxy-0.9.4
     make -f Makefile.Linux
     mkdir -p /usr/local/etc/3proxy/{bin,logs,stat}
-    cp src/3proxy /usr/local/etc/3proxy/bin/
-    cp ./scripts/rc.d/3proxy.sh /etc/init.d/3proxy
-    chmod +x /etc/init.d/3proxy
-    chkconfig 3proxy on
+    cp ./bin/3proxy /usr/local/etc/3proxy/bin/
+    cp ./scripts/3proxy.service /etc/systemd/system/
+    systemctl enable 3proxy
     cd $WORKDIR
 }
 
@@ -74,7 +73,7 @@ gen_ifconfig() {
 }
 
 echo "Installing required packages"
-yum -y install gcc net-tools bsdtar wget >/dev/null
+yum -y install gcc net-tools wget >/dev/null
 
 install_3proxy
 
@@ -106,7 +105,7 @@ cat >/etc/rc.local <<EOF
 bash ${WORKDIR}/boot_iptables.sh
 bash ${WORKDIR}/boot_ifconfig.sh
 ulimit -n 65535
-/usr/local/etc/3proxy/bin/3proxy /usr/local/etc/3proxy/3proxy.cfg &
+systemctl start 3proxy
 exit 0
 EOF
 
@@ -119,10 +118,7 @@ if ! bash /etc/rc.local; then
 fi
 
 echo "Restarting 3proxy..."
-pkill 3proxy
-sleep 2
-ulimit -n 65535
-/usr/local/etc/3proxy/bin/3proxy /usr/local/etc/3proxy/3proxy.cfg &
+systemctl restart 3proxy
 sleep 2
 
 gen_proxy_file_for_user
