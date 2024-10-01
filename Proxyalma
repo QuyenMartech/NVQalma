@@ -1,4 +1,11 @@
 #!/bin/sh
+
+# Check if script is run as root
+if [ "$(id -u)" != "0" ]; then
+   echo "This script must be run as root" 1>&2
+   exit 1
+fi
+
 random() {
     tr </dev/urandom -dc A-Za-z0-9 | head -c5
     echo
@@ -34,16 +41,13 @@ nscache 65536
 timeouts 1 5 30 60 180 1800 15 60
 setgid 65535
 setuid 65535
-auth strong
-
-users $(awk -F "/" 'BEGIN{ORS="";} {print $1 ":CL:" $2 " "}' ${WORKDATA})
 
 $(awk -F "/" '{print "auth strong\n" \
 "allow " $1 "\n" \
-"socks -6 -p" $4 " -i" $3 " -e"$5"\n" \
-"proxy -6 -p" $4 " -i" $3 " -e"$5"\n"}' ${WORKDATA})
+"proxy -6 -n -a -p" $4 " -i" $3 " -e"$5"\n" \
+"flush\n"}' ${WORKDATA})
 
-external ${IP6}
+users $(awk -F "/" 'BEGIN{ORS="";} {print $1 ":CL:" $2 " "}' ${WORKDATA})
 EOF
 }
 
@@ -72,13 +76,8 @@ EOF
 }
 
 gen_ifconfig() {
-    INTERFACE=$(ip -6 addr | awk '/inet6/{print $NF}' | head -n1)
-    if [ -z "$INTERFACE" ]; then
-        echo "No IPv6 interface found. Skipping IPv6 configuration."
-        return
-    fi
     cat <<EOF
-$(awk -F "/" '{print "ip -6 addr add " $5 "/64 dev '"$INTERFACE"'"}' ${WORKDATA})
+$(awk -F "/" '{print "ip -6 addr add " $5 "/64 dev enp1s0"}' ${WORKDATA})
 EOF
 }
 
@@ -114,14 +113,12 @@ cat >>/etc/rc.local <<EOF
 bash ${WORKDIR}/boot_iptables.sh
 bash ${WORKDIR}/boot_ifconfig.sh
 ulimit -n 10048
+service network restart
+sleep 5
 /usr/local/etc/3proxy/bin/3proxy /usr/local/etc/3proxy/3proxy.cfg
 EOF
 
-# Attempt to run the rc.local script
-if ! bash /etc/rc.local; then
-    echo "Error occurred while running rc.local. Please check the configuration."
-    exit 1
-fi
+bash /etc/rc.local
 
 gen_proxy_file_for_user
 
