@@ -42,8 +42,10 @@ timeouts 1 5 30 60 180 1800 15 60
 setgid 65535
 setuid 65535
 
-$(awk -F "/" '{print \
-"proxy -6 -n -a -p" $4 " -i" $3 " -e"$5" -u" $1 " -P" $2"\n" \
+auth strong password
+
+$(awk -F "/" '{print "users " $1 ":" $2 "\n" \
+"proxy -6 -n -a -p" $4 " -i" $3 " -e"$5"\n" \
 "flush\n"}' ${WORKDATA})
 
 EOF
