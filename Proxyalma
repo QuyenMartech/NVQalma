@@ -36,13 +36,13 @@ install_3proxy() {
 gen_3proxy() {
     cat <<EOF
 daemon
-maxconn 1000
+maxconn 2000
 nscache 65536
 timeouts 1 5 30 60 180 1800 15 60
 setgid 65535
 setuid 65535
 
-$(awk -F "/" '{print "auth strong\n" \
+$(awk -F "/" '{print "auth iponly\n" \
 "allow " $1 "\n" \
 "proxy -6 -n -a -p" $4 " -i" $3 " -e"$5"\n" \
 "flush\n"}' ${WORKDATA})
@@ -109,16 +109,21 @@ chmod +x ${WORKDIR}/boot_*.sh /etc/rc.local
 
 gen_3proxy >/usr/local/etc/3proxy/3proxy.cfg
 
+# Increase file descriptor limit
+echo "* soft nofile 65535" >> /etc/security/limits.conf
+echo "* hard nofile 65535" >> /etc/security/limits.conf
+
 cat >>/etc/rc.local <<EOF
 bash ${WORKDIR}/boot_iptables.sh
 bash ${WORKDIR}/boot_ifconfig.sh
-ulimit -n 10048
+ulimit -n 65535
 systemctl restart NetworkManager
 sleep 5
 /usr/local/etc/3proxy/bin/3proxy /usr/local/etc/3proxy/3proxy.cfg
 EOF
 
 # Start 3proxy
+ulimit -n 65535
 /usr/local/etc/3proxy/bin/3proxy /usr/local/etc/3proxy/3proxy.cfg &
 
 gen_proxy_file_for_user
@@ -131,6 +136,7 @@ echo "rotate 10" >> /usr/local/etc/3proxy/3proxy.cfg
 
 # Restart 3proxy to apply changes
 pkill 3proxy
+ulimit -n 65535
 /usr/local/etc/3proxy/bin/3proxy /usr/local/etc/3proxy/3proxy.cfg &
 
 echo "3proxy has been installed and configured. Check /var/log/3proxy.log for logs."
