@@ -1,4 +1,11 @@
 #!/bin/sh
+
+# Check if script is run as root
+if [ "$(id -u)" != "0" ]; then
+   echo "This script must be run as root" 1>&2
+   exit 1
+fi
+
 random() {
     tr </dev/urandom -dc A-Za-z0-9 | head -c5
     echo
@@ -27,6 +34,10 @@ install_3proxy() {
 }
 
 gen_3proxy() {
+    if [ ! -f ${WORKDATA} ]; then
+        echo "Error: ${WORKDATA} does not exist. Please ensure gen_data() is called before gen_3proxy()."
+        exit 1
+    fi
     cat <<EOF
 daemon
 maxconn 1000
@@ -34,13 +45,15 @@ nscache 65536
 timeouts 1 5 30 60 180 1800 15 60
 setgid 65535
 setuid 65535
-auth strong
-
-users $(awk -F "/" 'BEGIN{ORS="";} {print $1 ":CL:" $2 " "}' ${WORKDATA})
 
 $(awk -F "/" '{print "auth strong\n" \
 "allow " $1 "\n" \
-"socks -6 -p" $4 " -i" $3 " -e"$5"\n"}' ${WORKDATA})
+"proxy -6 -n -a -p" $4 " -i" $3 " -e"$5"\n" \
+"flush\n"}' ${WORKDATA})
+
+users $(awk -F "/" 'BEGIN{ORS="";} {print $1 ":CL:" $2 " "}' ${WORKDATA})
+
+external ${IP6}
 EOF
 }
 
@@ -109,7 +122,7 @@ gen_3proxy >/usr/local/etc/3proxy/3proxy.cfg
 
 cat >>/etc/rc.local <<EOF
 bash ${WORKDIR}/boot_iptables.sh
-bash ${WORKDIR}/boot_ifconfig.sh 2>/dev/null || echo "Warning: Failed to configure IPv6 addresses."
+bash ${WORKDIR}/boot_ifconfig.sh
 ulimit -n 10048
 /usr/local/etc/3proxy/bin/3proxy /usr/local/etc/3proxy/3proxy.cfg
 EOF
