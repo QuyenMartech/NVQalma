@@ -36,8 +36,6 @@ daemon
 maxconn 1000
 nscache 65536
 timeouts 1 5 30 60 180 1800 15 60
-setgid 0
-setuid 0
 flush
 auth strong
 
@@ -115,7 +113,7 @@ groupadd -r 3proxy
 useradd -r -g 3proxy -d /usr/local/etc/3proxy -s /sbin/nologin 3proxy
 
 # Đặt quyền sở hữu cho thư mục và tệp của 3proxy
-chown -R root:root /usr/local/etc/3proxy/
+chown -R 3proxy:3proxy /usr/local/etc/3proxy/
 
 # Tăng giới hạn số lượng tệp mô tả (file descriptor limit)
 echo "* soft nofile 65535" >> /etc/security/limits.conf
@@ -129,12 +127,15 @@ After=network.target
 
 [Service]
 Type=simple
-User=root
-Group=root
+User=3proxy
+Group=3proxy
+PermissionsStartOnly=true
 ExecStart=/usr/local/etc/3proxy/bin/3proxy /usr/local/etc/3proxy/3proxy.cfg
 ExecStop=/bin/kill -TERM \$MAINPID
 RemainAfterExit=yes
 Restart=always
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE CAP_NET_RAW
+AmbientCapabilities=CAP_NET_BIND_SERVICE CAP_NET_RAW
 
 [Install]
 WantedBy=multi-user.target
