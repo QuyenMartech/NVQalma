@@ -128,8 +128,10 @@ ExecStartPre=/bin/bash -c '${WORKDIR}/boot_iptables.sh'
 ExecStartPre=/bin/bash -c '${WORKDIR}/boot_ifconfig.sh'
 ExecStartPre=/bin/sleep 5
 ExecStart=/usr/local/etc/3proxy/bin/3proxy /usr/local/etc/3proxy/3proxy.cfg
-ExecStop=/bin/kill -TERM $MAINPID
+ExecStop=/bin/kill -TERM \$MAINPID
 LimitNOFILE=65535
+Restart=on-failure
+RestartSec=5s
 
 [Install]
 WantedBy=multi-user.target
@@ -144,10 +146,22 @@ touch /var/log/3proxy.log
 chown nobody:nobody /var/log/3proxy.log
 chmod 644 /var/log/3proxy.log
 
+# Check 3proxy configuration
+echo "Checking 3proxy configuration..."
+/usr/local/etc/3proxy/bin/3proxy -h /usr/local/etc/3proxy/3proxy.cfg
+
 # Reload systemd, enable and start 3proxy service
 systemctl daemon-reload
 systemctl enable 3proxy
 systemctl start 3proxy
+
+# Check 3proxy status
+echo "Checking 3proxy status..."
+systemctl status 3proxy
+
+# Check 3proxy log
+echo "Checking 3proxy log..."
+tail -n 20 /var/log/3proxy.log
 
 gen_proxy_file_for_user
 
