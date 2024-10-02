@@ -85,7 +85,7 @@ EOF
 }
 
 echo "Installing required packages"
-yum -y install gcc net-tools bsdtar zip curl >/dev/null
+yum -y install gcc net-tools bsdtar zip >/dev/null
 
 install_3proxy
 
@@ -148,16 +148,12 @@ chmod 644 /var/log/3proxy.log
 
 # Check 3proxy configuration
 echo "Checking 3proxy configuration..."
-/usr/local/etc/3proxy/bin/3proxy -C /usr/local/etc/3proxy/3proxy.cfg
+/usr/local/etc/3proxy/bin/3proxy -h /usr/local/etc/3proxy/3proxy.cfg
 
 # Reload systemd, enable and start 3proxy service
 systemctl daemon-reload
 systemctl enable 3proxy
 systemctl start 3proxy
-
-# Wait for 3proxy to fully start
-echo "Waiting for 3proxy to fully start..."
-sleep 10
 
 # Check 3proxy status
 echo "Checking 3proxy status..."
@@ -165,33 +161,8 @@ systemctl status 3proxy
 
 # Check 3proxy log
 echo "Checking 3proxy log..."
-if [ -f /var/log/3proxy.log ]; then
-    tail -n 20 /var/log/3proxy.log
-else
-    echo "Log file not found. Check if 3proxy is logging correctly."
-fi
+tail -n 20 /var/log/3proxy.log
 
-# Check listening ports
-echo "Checking listening ports..."
-netstat -tulpn | grep 3proxy
-
-# Test proxy connection
-echo "Testing proxy connection..."
 gen_proxy_file_for_user
-PROXY_LINE=$(head -n 1 proxy.txt)
-IP=$(echo $PROXY_LINE | cut -d':' -f1)
-PORT=$(echo $PROXY_LINE | cut -d':' -f2)
-USER=$(echo $PROXY_LINE | cut -d':' -f3)
-PASS=$(echo $PROXY_LINE | cut -d':' -f4)
-curl -x $USER:$PASS@$IP:$PORT https://ifconfig.me
-
-# Check firewall rules
-echo "Checking firewall rules..."
-iptables -L -n | grep -E "($FIRST_PORT|$LAST_PORT)"
 
 print_proxy
-
-echo "3proxy has been installed and configured as a systemd service."
-echo "Check /var/log/3proxy.log for logs."
-echo "You can start/stop/restart the service using:"
-echo "systemctl start/stop/restart 3proxy"
