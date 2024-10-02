@@ -110,6 +110,13 @@ chmod +x ${WORKDIR}/boot_*.sh
 
 gen_3proxy >/usr/local/etc/3proxy/3proxy.cfg
 
+# Tạo user và group cho 3proxy
+groupadd -r 3proxy
+useradd -r -g 3proxy -d /usr/local/etc/3proxy -s /sbin/nologin 3proxy
+
+# Đặt quyền sở hữu cho thư mục và tệp của 3proxy
+chown -R 3proxy:3proxy /usr/local/etc/3proxy/
+
 # Tăng giới hạn số lượng tệp mô tả (file descriptor limit)
 echo "* soft nofile 65535" >> /etc/security/limits.conf
 echo "* hard nofile 65535" >> /etc/security/limits.conf
@@ -122,6 +129,8 @@ After=network.target
 
 [Service]
 Type=simple
+User=3proxy
+Group=3proxy
 ExecStart=/usr/local/etc/3proxy/bin/3proxy /usr/local/etc/3proxy/3proxy.cfg
 ExecStop=/bin/kill -TERM $MAINPID
 RemainAfterExit=yes
