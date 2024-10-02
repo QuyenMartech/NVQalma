@@ -6,6 +6,10 @@ if [ "$(id -u)" != "0" ]; then
     exit 1
 fi
 
+# Enable IPv6
+sysctl -w net.ipv6.conf.all.disable_ipv6=0
+sysctl -w net.ipv6.conf.default.disable_ipv6=0
+
 random() {
     tr </dev/urandom -dc A-Za-z0-9 | head -c5
     echo
@@ -205,5 +209,8 @@ ls -l /usr/local/etc/3proxy/bin/3proxy
 
 echo "Trying to run 3proxy manually:"
 /usr/local/etc/3proxy/bin/3proxy /usr/local/etc/3proxy/3proxy.cfg
+
+echo "Checking for processes using 3proxy ports:"
+netstat -tulpn | grep -E "$(seq $FIRST_PORT $LAST_PORT | paste -sd'|' -)"
 
 echo "Script completed. Please check the output above for any errors."
