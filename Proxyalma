@@ -1,14 +1,10 @@
-#!/bin/bash
+#!/bin/sh
 
 # Check if script is run as root
 if [ "$(id -u)" != "0" ]; then
     echo "This script must be run as root" 1>&2
     exit 1
 fi
-
-# Enable IPv6
-sysctl -w net.ipv6.conf.all.disable_ipv6=0
-sysctl -w net.ipv6.conf.default.disable_ipv6=0
 
 random() {
     tr </dev/urandom -dc A-Za-z0-9 | head -c5
@@ -54,9 +50,6 @@ $(awk -F "/" '{print "auth strong\n"
 "allow " $1 "\n"
 "proxy -6 -n -a -p" $4 " -i" $3 " -e"$5"\n"
 "flush\n"}' ${WORKDATA})
-
-log /usr/local/etc/3proxy/logs/3proxy.log D
-rotate 10
 EOF
 }
 
@@ -93,7 +86,7 @@ EOF
 }
 
 echo "Installing required packages"
-yum -y install gcc net-tools bsdtar zip iptables-services wget curl >/dev/null
+yum -y install gcc net-tools bsdtar zip >/dev/null
 
 install_3proxy
 
@@ -124,21 +117,6 @@ gen_3proxy >/usr/local/etc/3proxy/3proxy.cfg
 echo "* soft nofile 65535" >> /etc/security/limits.conf
 echo "* hard nofile 65535" >> /etc/security/limits.conf
 
-cat >>/etc/rc.local <<EOF
-#!/bin/bash
-bash ${WORKDIR}/boot_iptables.sh
-bash ${WORKDIR}/boot_ifconfig.sh
-ulimit -n 65535
-sleep 5
-systemctl start 3proxy
-EOF
-
-chmod +x /etc/rc.local
-
-# Create log directory and set permissions
-mkdir -p /usr/local/etc/3proxy/logs
-chmod 777 /usr/local/etc/3proxy/logs
-
 # Create systemd service file for 3proxy
 cat > /etc/systemd/system/3proxy.service <<EOF
 [Unit]
@@ -148,69 +126,37 @@ After=network.target
 [Service]
 Type=simple
 ExecStart=/usr/local/etc/3proxy/bin/3proxy /usr/local/etc/3proxy/3proxy.cfg
+ExecStop=/bin/kill -TERM $MAINPID
 Restart=always
-RestartSec=3
-LimitNOFILE=65535
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-# Reload systemd, enable and start 3proxy service
+# Enable and start 3proxy service
 systemctl daemon-reload
 systemctl enable 3proxy
 systemctl start 3proxy
+
+cat >>/etc/rc.local <<EOF
+bash ${WORKDIR}/boot_iptables.sh
+bash ${WORKDIR}/boot_ifconfig.sh
+ulimit -n 65535
+systemctl restart NetworkManager
+sleep 5
+systemctl start 3proxy
+EOF
 
 gen_proxy_file_for_user
 
 print_proxy
 
-echo "3proxy has been installed and configured. Check /usr/local/etc/3proxy/logs/3proxy.log for logs."
+# Add logging
+echo "log /var/log/3proxy.log D" >> /usr/local/etc/3proxy/3proxy.cfg
+echo "rotate 10" >> /usr/local/etc/3proxy/3proxy.cfg
 
-# Wait for 3proxy to start and check its status
-sleep 10
-systemctl status 3proxy
+# Restart 3proxy to apply changes
+systemctl restart 3proxy
 
-# Check if 3proxy is listening on the configured ports
-netstat -tulpn | grep 3proxy
-
-# Display the last few lines of the 3proxy log
-tail -n 20 /usr/local/etc/3proxy/logs/3proxy.log
-
-# Enable and start iptables
-systemctl enable iptables
-systemctl start iptables
-
-# Apply iptables rules
-bash ${WORKDIR}/boot_iptables.sh
-
-# Restart network service to apply new IPv6 addresses
-systemctl restart network
-
-# Final check
-echo "Checking 3proxy status again after all configurations:"
-systemctl status 3proxy
-
-# Additional debugging steps
-echo "Checking 3proxy configuration file:"
-cat /usr/local/etc/3proxy/3proxy.cfg
-
-echo "Checking 3proxy log file:"
-tail -n 50 /usr/local/etc/3proxy/logs/3proxy.log
-
-echo "Checking IPv6 addresses:"
-ip -6 addr show
-
-echo "Checking iptables rules:"
-iptables -L -n -v
-
-echo "Checking if 3proxy binary exists and is executable:"
-ls -l /usr/local/etc/3proxy/bin/3proxy
-
-echo "Trying to run 3proxy manually:"
-/usr/local/etc/3proxy/bin/3proxy /usr/local/etc/3proxy/3proxy.cfg
-
-echo "Checking for processes using 3proxy ports:"
-netstat -tulpn | grep -E "$(seq $FIRST_PORT $LAST_PORT | paste -sd'|' -)"
-
-echo "Script completed. Please check the output above for any errors."
+echo "3proxy has been installed and configured. Check /var/log/3proxy.log for logs."
+echo "You can check the status of 3proxy by running: systemctl status 3proxy"
