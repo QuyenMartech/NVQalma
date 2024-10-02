@@ -89,7 +89,7 @@ EOF
 }
 
 echo "Installing required packages"
-yum -y install gcc net-tools bsdtar zip >/dev/null
+yum -y install gcc net-tools bsdtar zip iptables-services >/dev/null
 
 install_3proxy
 
@@ -121,25 +121,19 @@ echo "* soft nofile 65535" >> /etc/security/limits.conf
 echo "* hard nofile 65535" >> /etc/security/limits.conf
 
 cat >>/etc/rc.local <<EOF
+#!/bin/bash
 bash ${WORKDIR}/boot_iptables.sh
 bash ${WORKDIR}/boot_ifconfig.sh
 ulimit -n 65535
-systemctl restart NetworkManager
 sleep 5
-/usr/local/etc/3proxy/bin/3proxy /usr/local/etc/3proxy/3proxy.cfg
+systemctl start 3proxy
 EOF
+
+chmod +x /etc/rc.local
 
 # Create log directory and set permissions
 mkdir -p /usr/local/etc/3proxy/logs
 chmod 777 /usr/local/etc/3proxy/logs
-
-# Start 3proxy
-ulimit -n 65535
-/usr/local/etc/3proxy/bin/3proxy /usr/local/etc/3proxy/3proxy.cfg &
-
-gen_proxy_file_for_user
-
-print_proxy
 
 # Create systemd service file for 3proxy
 cat > /etc/systemd/system/3proxy.service <<EOF
@@ -152,6 +146,7 @@ Type=simple
 ExecStart=/usr/local/etc/3proxy/bin/3proxy /usr/local/etc/3proxy/3proxy.cfg
 Restart=always
 RestartSec=3
+LimitNOFILE=65535
 
 [Install]
 WantedBy=multi-user.target
@@ -161,6 +156,10 @@ EOF
 systemctl daemon-reload
 systemctl enable 3proxy
 systemctl start 3proxy
+
+gen_proxy_file_for_user
+
+print_proxy
 
 echo "3proxy has been installed and configured. Check /usr/local/etc/3proxy/logs/3proxy.log for logs."
 
@@ -173,3 +172,17 @@ netstat -tulpn | grep 3proxy
 
 # Display the last few lines of the 3proxy log
 tail -n 20 /usr/local/etc/3proxy/logs/3proxy.log
+
+# Enable and start iptables
+systemctl enable iptables
+systemctl start iptables
+
+# Apply iptables rules
+bash ${WORKDIR}/boot_iptables.sh
+
+# Restart network service to apply new IPv6 addresses
+systemctl restart network
+
+# Final check
+echo "Checking 3proxy status again after all configurations:"
+systemctl status 3proxy
