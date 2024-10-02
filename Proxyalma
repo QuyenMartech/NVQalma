@@ -2,8 +2,8 @@
 
 # Check if script is run as root
 if [ "$(id -u)" != "0" ]; then
-   echo "This script must be run as root" 1>&2
-   exit 1
+    echo "This script must be run as root" 1>&2
+    exit 1
 fi
 
 random() {
@@ -29,11 +29,12 @@ install_3proxy() {
     cp src/3proxy /usr/local/etc/3proxy/bin/
     cp ./scripts/rc.d/proxy.sh /etc/init.d/3proxy
     chmod +x /etc/init.d/3proxy
+    chkconfig 3proxy on
     cd $WORKDIR
 }
 
 gen_3proxy() {
-  cat <<EOF
+    cat <<EOF
 daemon
 maxconn 1000
 nscache 65536
@@ -45,9 +46,9 @@ auth strong
 
 users $(awk -F "/" 'BEGIN{ORS="";} {print $1 ":CL:" $2 " "}' ${WORKDATA})
 
-$(awk -F "/" '{print "auth strong\n" \
-"allow " $1 "\n" \
-"proxy -6 -n -a -p" $4 " -i" $3 " -e"$5"\n" \
+$(awk -F "/" '{print "auth strong\n"
+"allow " $1 "\n"
+"proxy -6 -n -a -p" $4 " -i" $3 " -e"$5"\n"
 "flush\n"}' ${WORKDATA})
 EOF
 }
@@ -74,7 +75,7 @@ gen_data() {
 
 gen_iptables() {
     cat <<EOF
-$(awk -F "/" '{print "iptables -I INPUT -p tcp --dport " $4 "  -m state --state NEW -j ACCEPT"}' ${WORKDATA})
+$(awk -F "/" '{print "iptables -I INPUT -p tcp --dport " $4 " -m state --state NEW -j ACCEPT"}' ${WORKDATA})
 EOF
 }
 
@@ -108,7 +109,7 @@ LAST_PORT=$(($FIRST_PORT + $COUNT))
 gen_data >$WORKDIR/data.txt
 gen_iptables >$WORKDIR/boot_iptables.sh
 gen_ifconfig >$WORKDIR/boot_ifconfig.sh
-chmod +x ${WORKDIR}/boot_*.sh
+chmod +x ${WORKDIR}/boot_*.sh /etc/rc.local
 
 gen_3proxy >/usr/local/etc/3proxy/3proxy.cfg
 
@@ -116,7 +117,28 @@ gen_3proxy >/usr/local/etc/3proxy/3proxy.cfg
 echo "* soft nofile 65535" >> /etc/security/limits.conf
 echo "* hard nofile 65535" >> /etc/security/limits.conf
 
-# Create systemd service file
+cat >>/etc/rc.local <<EOF
+bash ${WORKDIR}/boot_iptables.sh
+bash ${WORKDIR}/boot_ifconfig.sh
+ulimit -n 65535
+systemctl restart NetworkManager
+sleep 5
+/usr/local/etc/3proxy/bin/3proxy /usr/local/etc/3proxy/3proxy.cfg
+EOF
+
+# Start 3proxy
+ulimit -n 65535
+/usr/local/etc/3proxy/bin/3proxy /usr/local/etc/3proxy/3proxy.cfg &
+
+gen_proxy_file_for_user
+
+print_proxy
+
+# Add logging
+echo "log /var/log/3proxy.log D" >> /usr/local/etc/3proxy/3proxy.cfg
+echo "rotate 10" >> /usr/local/etc/3proxy/3proxy.cfg
+
+# Create systemd service file for 3proxy
 cat > /etc/systemd/system/3proxy.service <<EOF
 [Unit]
 Description=3proxy tiny proxy server
@@ -124,45 +146,27 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStartPre=/bin/bash -c '${WORKDIR}/boot_iptables.sh'
-ExecStartPre=/bin/bash -c '${WORKDIR}/boot_ifconfig.sh'
-ExecStartPre=/bin/sleep 5
 ExecStart=/usr/local/etc/3proxy/bin/3proxy /usr/local/etc/3proxy/3proxy.cfg
-ExecStop=/bin/kill -TERM \$MAINPID
-LimitNOFILE=65535
-Restart=on-failure
-RestartSec=5s
+Restart=always
+RestartSec=3
 
 [Install]
 WantedBy=multi-user.target
 EOF
-
-# Add logging
-echo "log /var/log/3proxy.log D" >> /usr/local/etc/3proxy/3proxy.cfg
-echo "rotate 10" >> /usr/local/etc/3proxy/3proxy.cfg
-
-# Create log file and set permissions
-touch /var/log/3proxy.log
-chown nobody:nobody /var/log/3proxy.log
-chmod 644 /var/log/3proxy.log
-
-# Check 3proxy configuration
-echo "Checking 3proxy configuration..."
-/usr/local/etc/3proxy/bin/3proxy -h /usr/local/etc/3proxy/3proxy.cfg
 
 # Reload systemd, enable and start 3proxy service
 systemctl daemon-reload
 systemctl enable 3proxy
 systemctl start 3proxy
 
-# Check 3proxy status
-echo "Checking 3proxy status..."
+echo "3proxy has been installed and configured. Check /var/log/3proxy.log for logs."
+
+# Wait for 3proxy to start and check its status
+sleep 10
 systemctl status 3proxy
 
-# Check 3proxy log
-echo "Checking 3proxy log..."
+# Check if 3proxy is listening on the configured ports
+netstat -tulpn | grep 3proxy
+
+# Display the last few lines of the 3proxy log
 tail -n 20 /var/log/3proxy.log
-
-gen_proxy_file_for_user
-
-print_proxy
