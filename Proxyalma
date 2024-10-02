@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # Check if script is run as root
 if [ "$(id -u)" != "0" ]; then
@@ -89,7 +89,7 @@ EOF
 }
 
 echo "Installing required packages"
-yum -y install gcc net-tools bsdtar zip iptables-services >/dev/null
+yum -y install gcc net-tools bsdtar zip iptables-services wget curl >/dev/null
 
 install_3proxy
 
@@ -186,3 +186,24 @@ systemctl restart network
 # Final check
 echo "Checking 3proxy status again after all configurations:"
 systemctl status 3proxy
+
+# Additional debugging steps
+echo "Checking 3proxy configuration file:"
+cat /usr/local/etc/3proxy/3proxy.cfg
+
+echo "Checking 3proxy log file:"
+tail -n 50 /usr/local/etc/3proxy/logs/3proxy.log
+
+echo "Checking IPv6 addresses:"
+ip -6 addr show
+
+echo "Checking iptables rules:"
+iptables -L -n -v
+
+echo "Checking if 3proxy binary exists and is executable:"
+ls -l /usr/local/etc/3proxy/bin/3proxy
+
+echo "Trying to run 3proxy manually:"
+/usr/local/etc/3proxy/bin/3proxy /usr/local/etc/3proxy/3proxy.cfg
+
+echo "Script completed. Please check the output above for any errors."
