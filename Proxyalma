@@ -36,8 +36,6 @@ daemon
 maxconn 1000
 nscache 65536
 timeouts 1 5 30 60 180 1800 15 60
-setgid 3proxy
-setuid 3proxy
 flush
 auth strong
 
@@ -131,10 +129,13 @@ After=network.target
 Type=simple
 User=3proxy
 Group=3proxy
+PermissionsStartOnly=true
 ExecStart=/usr/local/etc/3proxy/bin/3proxy /usr/local/etc/3proxy/3proxy.cfg
 ExecStop=/bin/kill -TERM \$MAINPID
 RemainAfterExit=yes
 Restart=always
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE CAP_NET_RAW
+AmbientCapabilities=CAP_NET_BIND_SERVICE CAP_NET_RAW
 
 [Install]
 WantedBy=multi-user.target
