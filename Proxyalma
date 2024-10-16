@@ -40,8 +40,6 @@ setgid 65535
 setuid 65535
 flush
 auth none
-log /usr/local/etc/3proxy/logs/3proxy.log D
-logformat "- +_L%t.%.  %N.%p %E %U %C:%c %R:%r %O %I %h %T"
 
 $(awk -F "/" '{print "proxy -6 -n -a -p" $4 " -i" $3 " -e"$5}' ${WORKDATA})
 EOF
@@ -132,18 +130,16 @@ systemctl enable 3proxy
 bash ${WORKDIR}/boot_iptables.sh
 bash ${WORKDIR}/boot_ifconfig.sh
 
+# Thêm quy tắc tường lửa cho các cổng 3proxy
+for port in $(seq $FIRST_PORT $LAST_PORT); do
+    firewall-cmd --permanent --add-port=${port}/tcp
+done
+firewall-cmd --reload
+
 gen_proxy_file_for_user
 
 print_proxy
 
-# Đảm bảo IPv6 được bật
-sysctl -w net.ipv6.conf.all.disable_ipv6=0
-sysctl -w net.ipv6.conf.default.disable_ipv6=0
-
-# Khởi động lại các dịch vụ mạng
-systemctl restart network
-
-# Khởi động 3proxy
 systemctl start 3proxy
 
 echo "3proxy has been installed and configured. Check /usr/local/etc/3proxy/logs/3proxy.log for logs."
@@ -162,15 +158,9 @@ echo "Listening ports:"
 ss -tuln | grep 3proxy
 
 echo "Firewall status:"
-if command -v firewall-cmd &> /dev/null; then
-    firewall-cmd --list-all
-elif command -v iptables &> /dev/null; then
-    iptables -L -n
-else
-    echo "No firewall detected"
-fi
+firewall-cmd --list-all
 
-# Kiểm tra và khởi động lại nếu cần
+# Thêm kiểm tra và khởi động lại nếu cần
 if ! pgrep -x "3proxy" > /dev/null; then
     echo "3proxy is not running. Attempting to start..."
     systemctl start 3proxy
@@ -182,18 +172,12 @@ if ! pgrep -x "3proxy" > /dev/null; then
     fi
 fi
 
-# Kiểm tra cấu hình IPv6
-echo "IPv6 configuration:"
-ip -6 addr show
-
-# Kiểm tra kết nối IPv6
-echo "Testing IPv6 connectivity:"
-ping6 -c 4 ipv6.google.com
-
-# Kiểm tra các cổng đang lắng nghe
-echo "Listening ports:"
-netstat -tuln | grep 3proxy
-
-# Kiểm tra log
-echo "Last 10 lines of 3proxy log:"
-tail -n 10 /usr/local/etc/3proxy/logs/3proxy.log
+# Kiểm tra kết nối
+echo "Testing proxy connections..."
+for port in $(seq $FIRST_PORT $LAST_PORT); do
+    if nc -z localhost $port; then
+        echo "Port $port is open and accessible"
+    else
+        echo "Port $port is not accessible"
+    fi
+done
